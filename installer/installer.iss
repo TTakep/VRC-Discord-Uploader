@@ -3,8 +3,8 @@
 #ifndef MyAppVersion
   #define MyAppVersion "1.0.0"
 #endif
-#define MyAppPublisher "Takep"
-#define MyAppURL "https://github.com/Takep/VRC-Discord-Uploader"
+#define MyAppPublisher "TTakep"
+#define MyAppURL "https://github.com/TTakep/VRC-Discord-Uploader"
 #define MyAppExeName "VRChatDiscordUploader.exe"
 
 [Setup]

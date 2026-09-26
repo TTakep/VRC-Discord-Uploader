@@ -1,6 +1,6 @@
 # VRChat Discord Uploader
 
-[![GitHub Release](https://img.shields.io/github/v/release/Takep/VRC-Discord-Uploader?color=blue&logo=github)](https://github.com/Takep/VRC-Discord-Uploader/releases)
+[![GitHub Release](https://img.shields.io/github/v/release/TTakep/VRC-Discord-Uploader?color=blue&logo=github)](https://github.com/TTakep/VRC-Discord-Uploader/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/Platform-Windows%2010%20%2F%2011%20(x64)-blue.svg)](#動作環境)
 [![.NET](https://img.shields.io/badge/.NET-10.0-purple.svg)](https://dotnet.microsoft.com/)
@@ -13,7 +13,7 @@ VRChatで撮影した写真をリアルタイムに自動検知し、指定し�
 
 ## 📥 ダウンロード
 
-[**Releases ページ**](https://github.com/Takep/VRC-Discord-Uploader/releases) から最新バージョンをダウンロードしてください。
+[**Releases ページ**](https://github.com/TTakep/VRC-Discord-Uploader/releases) から最新バージョンをダウンロードしてください。
 
 | 配布パッケージ | 特徴 | 対象 |
 | :--- | :--- | :--- |
@@ -93,7 +93,7 @@ VRChatで撮影した写真をリアルタイムに自動検知し、指定し�
 ### ビルドとテスト
 ```powershell
 # リポジトリのクローン
-git clone https://github.com/Takep/VRC-Discord-Uploader.git
+git clone https://github.com/TTakep/VRC-Discord-Uploader.git
 cd VRC-Discord-Uploader
 
 # ソリューションのビルド

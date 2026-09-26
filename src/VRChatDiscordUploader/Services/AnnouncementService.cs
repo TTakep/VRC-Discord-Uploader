@@ -17,8 +17,8 @@ public class AnnouncementService
     };
 
     // 配布・公開時のGitHub Releases または お知らせ用JSONのエンドポイント
-    private const string AnnouncementsUrl = "https://raw.githubusercontent.com/Takep/VRC-Discord-Uploader/main/announcements.json";
-    private const string GitHubReleasesApiUrl = "https://api.github.com/repos/Takep/VRC-Discord-Uploader/releases/latest";
+    private const string AnnouncementsUrl = "https://raw.githubusercontent.com/TTakep/VRC-Discord-Uploader/main/announcements.json";
+    private const string GitHubReleasesApiUrl = "https://api.github.com/repos/TTakep/VRC-Discord-Uploader/releases/latest";
 
     public async Task<List<AnnouncementItem>> GetAnnouncementsAsync()
     {
@@ -43,7 +43,7 @@ public class AnnouncementService
                 Title = "VRChat Discord Uploader へようこそ",
                 Content = "本ソフトウェアをご利用いただきありがとうございます。設定画面からDiscord Webhook URLを登録してご利用ください。",
                 PublishedAt = DateTime.Now,
-                LinkUrl = "https://github.com/Takep/VRC-Discord-Uploader",
+                LinkUrl = "https://github.com/TTakep/VRC-Discord-Uploader",
                 IsImportant = false
             }
         };
