@@ -86,6 +86,7 @@
                             </Button>
                             <TextBlock Text="{x:Bind ViewModel.TestResultText, Mode=OneWay}" 
                                        FontSize="12" 
+                                       TextWrapping="Wrap"
                                        Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                         </StackPanel>
                     </StackPanel>

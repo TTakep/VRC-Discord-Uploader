@@ -50,6 +50,15 @@ public class DiscordWebhookService
             return historyItem;
         }
 
+        webhookUrl = webhookUrl.Trim();
+        if (!webhookUrl.StartsWith("https://discord.com/api/webhooks/", StringComparison.OrdinalIgnoreCase) &&
+            !webhookUrl.StartsWith("https://discordapp.com/api/webhooks/", StringComparison.OrdinalIgnoreCase))
+        {
+            historyItem.Status = UploadStatus.Failed;
+            historyItem.ErrorMessage = "Discord Webhook URLの形式が無効です。「https://discord.com/api/webhooks/...」で始まるURLを設定してください。";
+            return historyItem;
+        }
+
         try
         {
             var primaryPhoto = photos.FirstOrDefault();
@@ -218,6 +227,11 @@ public class DiscordWebhookService
         return historyItem;
     }
 
+    static DiscordWebhookService()
+    {
+        HttpClient.DefaultRequestHeaders.UserAgent.ParseAdd("VRChatDiscordUploader/1.0 (+https://github.com)");
+    }
+
     /// <summary>
     /// Webhook URLへの疎通テストを送信します。
     /// </summary>
@@ -225,31 +239,60 @@ public class DiscordWebhookService
     {
         if (string.IsNullOrWhiteSpace(webhookUrl))
         {
-            return (false, "Webhook URLが空です。");
+            return (false, "Webhook URLが入力されていません。");
+        }
+
+        webhookUrl = webhookUrl.Trim();
+        if (!webhookUrl.StartsWith("https://discord.com/api/webhooks/", StringComparison.OrdinalIgnoreCase) &&
+            !webhookUrl.StartsWith("https://discordapp.com/api/webhooks/", StringComparison.OrdinalIgnoreCase))
+        {
+            return (false, "Webhook URLの形式が正しくありません。「https://discord.com/api/webhooks/...」で始まるDiscordのWebhook URLを入力してください。");
         }
 
         try
         {
+            var config = _configService.CurrentConfig;
+            string requestUrl = webhookUrl;
             var payload = new JsonObject
             {
                 ["content"] = "🔔 VRChat Discord Uploader: 接続テストに成功しました。"
             };
 
+            // スレッドまたはフォーラムの指定がある場合の対応
+            if (config.Discord.DestinationType == DestinationType.Thread && !string.IsNullOrWhiteSpace(config.Discord.ThreadId))
+            {
+                requestUrl += (requestUrl.Contains('?') ? "&" : "?") + $"thread_id={config.Discord.ThreadId.Trim()}";
+            }
+            else if (config.Discord.DestinationType == DestinationType.Forum)
+            {
+                if (!string.IsNullOrWhiteSpace(config.Discord.ForumCachedThreadId))
+                {
+                    requestUrl += (requestUrl.Contains('?') ? "&" : "?") + $"thread_id={config.Discord.ForumCachedThreadId.Trim()}";
+                }
+                else
+                {
+                    payload["thread_name"] = "接続テスト";
+                }
+            }
+
             using var content = new StringContent(payload.ToJsonString(), Encoding.UTF8, "application/json");
-            var response = await HttpClient.PostAsync(webhookUrl, content);
+            var response = await HttpClient.PostAsync(requestUrl, content);
 
             if (response.IsSuccessStatusCode)
             {
+                App.Log("Webhook接続テスト成功");
                 return (true, "接続に成功しました。Discordにテストメッセージが投稿されました。");
             }
             else
             {
                 var err = await response.Content.ReadAsStringAsync();
+                App.Log($"Webhook接続テストエラー ({(int)response.StatusCode}): {err}");
                 return (false, $"エラー ({(int)response.StatusCode}): {err}");
             }
         }
         catch (Exception ex)
         {
+            App.Log($"Webhook接続テスト例外: {ex.Message}");
             return (false, $"通信エラー: {ex.Message}");
         }
     }

@@ -109,4 +109,22 @@ public class CoreTests
 
         Assert.Equal("2026年09月の写真", title);
     }
+
+    [Fact]
+    public async Task DiscordWebhookService_TestWebhookAsync_RejectsInvalidUrl()
+    {
+        var configService = new ConfigurationService();
+        var imageService = new ImageProcessingService();
+        var discordService = new DiscordWebhookService(configService, imageService);
+
+        // GoogleアカウントのURLなど無効なURL
+        var (success1, msg1) = await discordService.TestWebhookAsync("https://accounts.google.com/o/oauth2/v2/auth");
+        Assert.False(success1);
+        Assert.Contains("形式が正しくありません", msg1);
+
+        // 空URL
+        var (success2, msg2) = await discordService.TestWebhookAsync("");
+        Assert.False(success2);
+        Assert.Contains("入力されていません", msg2);
+    }
 }
