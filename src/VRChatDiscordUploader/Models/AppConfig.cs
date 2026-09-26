@@ -23,6 +23,12 @@ public enum NotificationLevel
     None       // 通知しない
 }
 
+public enum CloseWindowBehavior
+{
+    MinimizeToTray, // タスクトレイに最小化（常駐継続）
+    ExitApplication // アプリケーションを終了
+}
+
 public class AppConfig
 {
     public GeneralSettings General { get; set; } = new();
@@ -37,6 +43,7 @@ public class GeneralSettings
     public bool StartMinimized { get; set; } = false;
     public string CustomWatchDirectory { get; set; } = string.Empty;
     public NotificationLevel NotificationLevel { get; set; } = NotificationLevel.ErrorOnly;
+    public CloseWindowBehavior CloseBehavior { get; set; } = CloseWindowBehavior.MinimizeToTray;
 }
 
 public class DiscordSettings
@@ -67,4 +74,5 @@ public class MetadataSettings
     public bool IncludeWorldId { get; set; } = false;
     public bool IncludeUsers { get; set; } = true;
     public int MaxUsersCount { get; set; } = 15;
+    public bool IncludeResolutionAndSize { get; set; } = true;
 }

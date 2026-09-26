@@ -21,6 +21,8 @@ public class TrayIconService : IDisposable
     private const uint NIF_MESSAGE = 0x00000001;
     private const uint NIF_ICON = 0x00000002;
     private const uint NIF_TIP = 0x00000004;
+    private const uint NIF_INFO = 0x00000010;
+    private const uint NIIF_INFO = 0x00000001;
 
     private const uint TPM_BOTTOMALIGN = 0x0020;
     private const uint TPM_RETURNCMD = 0x0100;
@@ -75,6 +77,9 @@ public class TrayIconService : IDisposable
 
     [DllImport("user32.dll", CharSet = CharSet.Unicode)]
     private static extern IntPtr LoadImage(IntPtr hinst, string lpszName, uint uType, int cxDesired, int cyDesired, uint fuLoad);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    private static extern bool DestroyIcon(IntPtr hIcon);
 
     [DllImport("user32.dll")]
     private static extern IntPtr DefWindowProc(IntPtr hWnd, uint uMsg, IntPtr wParam, IntPtr lParam);
@@ -210,6 +215,24 @@ public class TrayIconService : IDisposable
     public void ShowWindow()
     {
         _appWindow.Show();
+        if (_appWindow.Presenter is OverlappedPresenter presenter)
+        {
+            if (presenter.State == OverlappedPresenterState.Minimized)
+            {
+                presenter.Restore();
+            }
+        }
+        SetForegroundWindow(_hwnd);
+    }
+
+    public void ShowNotification(string title, string message)
+    {
+        var nid = _nid;
+        nid.uFlags = NIF_INFO;
+        nid.szInfoTitle = title.Length > 63 ? title.Substring(0, 63) : title;
+        nid.szInfo = message.Length > 255 ? message.Substring(0, 255) : message;
+        nid.dwInfoFlags = NIIF_INFO;
+        Shell_NotifyIcon(NIM_MODIFY, ref nid);
     }
 
     public void Dispose()
@@ -218,6 +241,11 @@ public class TrayIconService : IDisposable
         {
             _isDisposed = true;
             Shell_NotifyIcon(NIM_DELETE, ref _nid);
+            if (_hIcon != IntPtr.Zero)
+            {
+                DestroyIcon(_hIcon);
+                _hIcon = IntPtr.Zero;
+            }
             if (_prevWndProc != IntPtr.Zero)
             {
                 SetWindowLongPtr(_hwnd, -4 /*GWLP_WNDPROC*/, _prevWndProc);

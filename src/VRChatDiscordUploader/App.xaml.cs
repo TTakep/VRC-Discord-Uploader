@@ -90,6 +90,7 @@ public partial class App : Application
 
         services.AddTransient<HomeViewModel>();
         services.AddTransient<GalleryViewModel>();
+        services.AddTransient<QueueViewModel>();
         services.AddTransient<HistoryViewModel>();
         services.AddTransient<AnnouncementsViewModel>();
         services.AddTransient<SettingsViewModel>();
@@ -108,16 +109,25 @@ public partial class App : Application
             var logParser = Services.GetRequiredService<VRCLogParserService>();
             var fileWatcher = Services.GetRequiredService<FileWatcherService>();
             var photoBatch = Services.GetRequiredService<PhotoBatchService>();
+            var historyManager = Services.GetRequiredService<HistoryManagerService>();
             var notificationService = Services.GetRequiredService<NotificationService>();
+
+            // リアルタイム写真検知 -> 送信キュー投入
+            fileWatcher.PhotoDetected += (s, e) =>
+            {
+                photoBatch.EnqueueRealtimePhoto(e.FilePath);
+            };
+
+            // 送信完了 -> 履歴保存 & 通知
+            photoBatch.UploadCompleted += (s, e) =>
+            {
+                historyManager.AddItem(e.HistoryItem);
+                notificationService.NotifyUploadResult(e.HistoryItem);
+            };
 
             logParser.StartLiveMonitoring();
             fileWatcher.Start();
             Log("バックグラウンドサービス監視開始");
-
-            photoBatch.UploadCompleted += (s, e) =>
-            {
-                notificationService.NotifyUploadResult(e.HistoryItem);
-            };
 
             _window.Activate();
             Log("MainWindow Activate 完了");

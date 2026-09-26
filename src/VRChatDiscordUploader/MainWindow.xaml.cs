@@ -64,11 +64,31 @@ public sealed partial class MainWindow : Window
 
     private void AppWindow_Closing(AppWindow sender, AppWindowClosingEventArgs args)
     {
-        if (!_isExplicitExit)
+        if (_isExplicitExit) return;
+
+        var config = App.Services.GetService<ConfigurationService>()?.CurrentConfig;
+        var behavior = config?.General.CloseBehavior ?? Models.CloseWindowBehavior.MinimizeToTray;
+
+        if (behavior == Models.CloseWindowBehavior.ExitApplication)
         {
-            args.Cancel = true;
-            _appWindow?.Hide();
+            ExitApplication();
+            return;
         }
+
+        // タスクトレイに最小化
+        args.Cancel = true;
+        _appWindow?.Hide();
+
+        // トースト通知 & タスクトレイ通知
+        const string title = "VRChat Discord Uploader";
+        const string msg = "バックグラウンドで監視を継続しています。タスクトレイからいつでも開くことができます。";
+        _trayIconService?.ShowNotification(title, msg);
+        try
+        {
+            var notif = App.Services.GetService<NotificationService>();
+            notif?.ShowToast(title, msg, isError: false);
+        }
+        catch { }
     }
 
     private void MainNavView_Loaded(object sender, RoutedEventArgs e)
@@ -94,6 +114,7 @@ public sealed partial class MainWindow : Window
         {
             "Home" => typeof(HomePage),
             "Gallery" => typeof(GalleryPage),
+            "Queue" => typeof(QueuePage),
             "History" => typeof(HistoryPage),
             "Announcements" => typeof(AnnouncementsPage),
             "Settings" => typeof(SettingsPage),

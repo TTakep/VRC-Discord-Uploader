@@ -155,32 +155,38 @@ public class VRCLogParserService : IDisposable
         string? currentLogFile = null;
         FileStream? stream = null;
         StreamReader? reader = null;
+        int checkCounter = 0;
 
         while (!ct.IsCancellationRequested)
         {
             try
             {
-                var latestLog = GetLatestLogFile();
-                if (latestLog != currentLogFile)
+                // 新しいログファイルの確認は3秒に1回に間引き（毎秒のディレクトリ全走査の無駄を削減）
+                if (currentLogFile == null || ++checkCounter >= 3)
                 {
-                    reader?.Dispose();
-                    stream?.Dispose();
-                    currentLogFile = latestLog;
-
-                    if (currentLogFile != null && File.Exists(currentLogFile))
+                    checkCounter = 0;
+                    var latestLog = GetLatestLogFile();
+                    if (latestLog != currentLogFile)
                     {
-                        stream = new FileStream(
-                            currentLogFile,
-                            FileMode.Open,
-                            FileAccess.Read,
-                            FileShare.ReadWrite
-                        );
-                        reader = new StreamReader(stream);
-                        // 初回は既存行を走査して現在のワールド状態を復元
-                        string? line;
-                        while ((line = reader.ReadLine()) != null)
+                        reader?.Dispose();
+                        stream?.Dispose();
+                        currentLogFile = latestLog;
+
+                        if (currentLogFile != null && File.Exists(currentLogFile))
                         {
-                            ProcessLogLine(line);
+                            stream = new FileStream(
+                                currentLogFile,
+                                FileMode.Open,
+                                FileAccess.Read,
+                                FileShare.ReadWrite
+                            );
+                            reader = new StreamReader(stream);
+                            // 初回は既存行を走査して現在のワールド状態を復元
+                            string? line;
+                            while ((line = reader.ReadLine()) != null)
+                            {
+                                ProcessLogLine(line);
+                            }
                         }
                     }
                 }
@@ -219,6 +225,7 @@ public class VRCLogParserService : IDisposable
             lock (_stateLock)
             {
                 _currentState.WorldName = worldName;
+                _currentState.WorldId = string.Empty; // ワールド移動時に古いIDをリセット
                 _currentState.Players.Clear();
             }
             return;
@@ -292,7 +299,6 @@ public class VRCLogParserService : IDisposable
                 using var reader = new StreamReader(fs);
 
                 var tempState = new VRChatWorldState();
-                var lastValidState = new VRChatWorldState();
                 bool foundAny = false;
 
                 string? line;
@@ -309,12 +315,8 @@ public class VRCLogParserService : IDisposable
                     {
                         if (logTime > targetTime)
                         {
-                            // 撮影時刻を超えたので、直前までのワールド状態を確定
-                            if (foundAny)
-                            {
-                                return lastValidState;
-                            }
-                            break;
+                            // 撮影時刻を超えたので、直前までのワールド状態を返却
+                            return foundAny ? tempState : null;
                         }
                     }
 
@@ -322,8 +324,16 @@ public class VRCLogParserService : IDisposable
                     if (enteringMatch.Success)
                     {
                         tempState.WorldName = enteringMatch.Groups[1].Value.Trim();
+                        tempState.WorldId = string.Empty;
                         tempState.Players.Clear();
                         foundAny = true;
+                        continue;
+                    }
+
+                    var joiningMatch = JoiningWorldRegex.Match(line);
+                    if (joiningMatch.Success)
+                    {
+                        tempState.WorldId = joiningMatch.Groups[1].Value.Trim();
                         continue;
                     }
 
@@ -340,19 +350,11 @@ public class VRCLogParserService : IDisposable
                         tempState.Players.Remove(leftMatch.Groups[1].Value.Trim());
                         continue;
                     }
-
-                    lastValidState.WorldName = tempState.WorldName;
-                    lastValidState.WorldId = tempState.WorldId;
-                    lastValidState.Players.Clear();
-                    foreach (var p in tempState.Players)
-                    {
-                        lastValidState.Players.Add(p);
-                    }
                 }
 
                 if (foundAny)
                 {
-                    return lastValidState;
+                    return tempState;
                 }
             }
             catch

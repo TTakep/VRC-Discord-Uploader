@@ -12,6 +12,29 @@ public class ProcessedImageResult
     public bool WasResized { get; set; } = false;
     public int Width { get; set; }
     public int Height { get; set; }
+    public int OriginalWidth { get; set; }
+    public int OriginalHeight { get; set; }
+    public long OriginalSizeBytes { get; set; }
+    public long ProcessedSizeBytes => Data.Length;
+
+    public static string FormatBytes(long bytes) => bytes switch
+    {
+        >= 1024 * 1024 => $"{(double)bytes / (1024 * 1024):F2} MB",
+        >= 1024 => $"{(double)bytes / 1024:F1} KB",
+        _ => $"{bytes} B"
+    };
+
+    public string ResolutionText => WasResized
+        ? $"{OriginalWidth}×{OriginalHeight} ➔ {Width}×{Height}"
+        : $"{Width}×{Height}";
+
+    public string SizeText => WasResized
+        ? $"{FormatBytes(OriginalSizeBytes)} ➔ {FormatBytes(ProcessedSizeBytes)}"
+        : $"{FormatBytes(ProcessedSizeBytes)}";
+
+    public string SummaryText => WasResized
+        ? $"{OriginalWidth}×{OriginalHeight} ({FormatBytes(OriginalSizeBytes)}) ➔ {Width}×{Height} ({FormatBytes(ProcessedSizeBytes)} ⚡最適化)"
+        : $"{Width}×{Height} ({FormatBytes(ProcessedSizeBytes)})";
 }
 
 public class ImageProcessingService
@@ -19,7 +42,7 @@ public class ImageProcessingService
     /// <summary>
     /// 画像ファイルを読み込み、必要に応じてPNG形式のまま解像度を縮小リサイズして上限サイズ内に収めます。
     /// </summary>
-    public ProcessedImageResult ProcessImageForUpload(string filePath, double maxFileSizeMB)
+    public ProcessedImageResult ProcessImageForUpload(string filePath, double maxFileSizeMB, Action<string>? progress = null)
     {
         var fileInfo = new FileInfo(filePath);
         if (!fileInfo.Exists)
@@ -29,12 +52,15 @@ public class ImageProcessingService
 
         var fileName = Path.GetFileName(filePath);
         long maxBytes = (long)(maxFileSizeMB * 1024 * 1024);
+        long originalSize = fileInfo.Length;
 
         // ファイルサイズが既に上限以内の場合はそのまま読み込んで返却
-        if (fileInfo.Length <= maxBytes)
+        if (originalSize <= maxBytes)
         {
+            progress?.Invoke($"画像を読み込み中: {fileName} ({ProcessedImageResult.FormatBytes(originalSize)})");
             var rawBytes = File.ReadAllBytes(filePath);
-            using var codec = SKCodec.Create(filePath);
+            using var stream = new SKMemoryStream(rawBytes);
+            using var codec = SKCodec.Create(stream);
             var width = codec?.Info.Width ?? 0;
             var height = codec?.Info.Height ?? 0;
 
@@ -45,22 +71,28 @@ public class ImageProcessingService
                 ContentType = GetContentType(fileName),
                 WasResized = false,
                 Width = width,
-                Height = height
+                Height = height,
+                OriginalWidth = width,
+                OriginalHeight = height,
+                OriginalSizeBytes = originalSize
             };
         }
 
         // 上限を超えている場合は、SkiaSharpを用いてPNGのまま解像度を縮小
+        progress?.Invoke($"上限超過のため最適化中: {fileName} ({ProcessedImageResult.FormatBytes(originalSize)} > {maxFileSizeMB:F1}MB)");
         using var originalBitmap = SKBitmap.Decode(filePath);
         if (originalBitmap == null)
         {
             throw new InvalidOperationException("画像のデコードに失敗しました。");
         }
 
-        int currentWidth = originalBitmap.Width;
-        int currentHeight = originalBitmap.Height;
+        int origWidth = originalBitmap.Width;
+        int origHeight = originalBitmap.Height;
+        int currentWidth = origWidth;
+        int currentHeight = origHeight;
 
         // 初期スケール推定（面積比から概算）
-        double sizeRatio = (double)maxBytes / fileInfo.Length;
+        double sizeRatio = (double)maxBytes / originalSize;
         double scale = Math.Min(0.9, Math.Sqrt(sizeRatio) * 0.95); // 安全マージン
 
         byte[] encodedData = Array.Empty<byte>();
@@ -68,8 +100,10 @@ public class ImageProcessingService
         // 最大8回のリサイズ試行で上限サイズ以下に確実に収める
         for (int attempt = 0; attempt < 8; attempt++)
         {
-            int targetWidth = Math.Max(50, (int)(originalBitmap.Width * scale));
-            int targetHeight = Math.Max(50, (int)(originalBitmap.Height * scale));
+            int targetWidth = Math.Max(50, (int)(origWidth * scale));
+            int targetHeight = Math.Max(50, (int)(origHeight * scale));
+
+            progress?.Invoke($"解像度縮小試行中 ({attempt + 1}/8): {targetWidth}×{targetHeight}...");
 
             using var resizedBitmap = originalBitmap.Resize(
                 new SKImageInfo(targetWidth, targetHeight),
@@ -97,6 +131,16 @@ public class ImageProcessingService
             scale = Math.Min(scale * 0.75, scale * ratio);
         }
 
+        // 万一のリサイズ失敗時の安全フォールバック
+        if (encodedData.Length == 0)
+        {
+            encodedData = File.ReadAllBytes(filePath);
+            currentWidth = origWidth;
+            currentHeight = origHeight;
+        }
+
+        progress?.Invoke($"最適化完了: {origWidth}×{origHeight} ➔ {currentWidth}×{currentHeight} ({ProcessedImageResult.FormatBytes(originalSize)} ➔ {ProcessedImageResult.FormatBytes(encodedData.Length)})");
+
         return new ProcessedImageResult
         {
             Data = encodedData,
@@ -104,7 +148,10 @@ public class ImageProcessingService
             ContentType = "image/png",
             WasResized = true,
             Width = currentWidth,
-            Height = currentHeight
+            Height = currentHeight,
+            OriginalWidth = origWidth,
+            OriginalHeight = origHeight,
+            OriginalSizeBytes = originalSize
         };
     }
 

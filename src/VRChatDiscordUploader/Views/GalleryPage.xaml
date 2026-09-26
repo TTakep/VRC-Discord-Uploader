@@ -19,7 +19,7 @@
         <!-- ページヘッダー -->
         <StackPanel Spacing="4">
             <TextBlock Text="写真アルバム" Style="{StaticResource TitleTextBlockStyle}" FontWeight="SemiBold" />
-            <TextBlock Text="過去に撮影した写真を年月別に閲覧し、選択してDiscordへ送信できます" 
+            <TextBlock Text="過去に撮影した写真を年月別に閲覧し、クリックして詳細表示や選択してDiscordへ送信できます" 
                        Style="{StaticResource BodyTextBlockStyle}" 
                        Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
         </StackPanel>
@@ -31,6 +31,7 @@
                 <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
 
@@ -48,10 +49,19 @@
                 <TextBlock Text="選択解除" />
             </Button>
 
+            <!-- 画像のみ送信トグル -->
+            <ToggleSwitch Grid.Column="4"
+                          IsOn="{x:Bind ViewModel.ImageOnly, Mode=TwoWay}"
+                          OnContent="画像のみ送信"
+                          OffContent="メタデータ付き送信"
+                          Margin="0,-6,8,0"
+                          ToolTipService.ToolTip="オンにするとワールド情報などのメタデータを含めず、画像ファイルのみを送信します" />
+
             <!-- 送信ボタン -->
-            <Button Grid.Column="4" 
+            <Button Grid.Column="5" 
                     Style="{StaticResource AccentButtonStyle}"
-                    Command="{x:Bind ViewModel.UploadSelectedPhotosCommand}">
+                    Command="{x:Bind ViewModel.UploadSelectedPhotosCommand}"
+                    IsEnabled="{x:Bind ViewModel.CanUpload, Mode=OneWay}">
                 <StackPanel Orientation="Horizontal" Spacing="8">
                     <FontIcon Glyph="&#xE898;" FontSize="14" />
                     <TextBlock Text="選択した写真を送信" />
@@ -61,8 +71,11 @@
 
         <!-- 写真グリッド -->
         <GridView Grid.Row="2"
+                  x:Name="PhotosGridView"
                   ItemsSource="{x:Bind ViewModel.Photos, Mode=OneWay}"
-                  SelectionMode="None">
+                  SelectionMode="None"
+                  IsItemClickEnabled="True"
+                  ItemClick="PhotoGrid_ItemClick">
             <GridView.ItemTemplate>
                 <DataTemplate x:DataType="viewmodels:GalleryPhotoItem">
                     <Border Width="160" Height="150" 
@@ -103,14 +116,109 @@
             </GridView.ItemTemplate>
         </GridView>
 
-        <!-- ステータスバー -->
+        <!-- ステータスバー（キュー・最適化進捗可視化） -->
         <Border Grid.Row="3" 
                 Background="{ThemeResource LayerFillColorDefaultBrush}" 
-                Padding="12,8" 
-                CornerRadius="6">
-            <TextBlock Text="{x:Bind ViewModel.StatusMessage, Mode=OneWay}" 
-                       FontSize="12" 
-                       Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                BorderThickness="1"
+                Padding="16,10" 
+                CornerRadius="8">
+            <Grid RowSpacing="6">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
+                <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+                    <ProgressRing Width="16" Height="16" 
+                                  IsActive="{x:Bind ViewModel.IsBatchActive, Mode=OneWay}"
+                                  Visibility="{x:Bind ViewModel.BatchProgressVisibility, Mode=OneWay}" />
+                    <TextBlock Text="{x:Bind ViewModel.StatusMessage, Mode=OneWay}" 
+                               FontSize="12" 
+                               FontWeight="Medium"
+                               Foreground="{ThemeResource TextFillColorPrimaryBrush}" 
+                               VerticalAlignment="Center" />
+                </StackPanel>
+
+                <!-- プログレスバー（処理中の場合） -->
+                <ProgressBar Grid.Row="1"
+                             Value="{x:Bind ViewModel.BatchProgressValue, Mode=OneWay}"
+                             IsIndeterminate="{x:Bind ViewModel.BatchProgressIsIndeterminate, Mode=OneWay}"
+                             Visibility="{x:Bind ViewModel.BatchProgressVisibility, Mode=OneWay}"
+                             Height="4"
+                             Margin="0,2,0,0" />
+            </Grid>
         </Border>
+
+        <!-- 写真詳細ダイアログ -->
+        <ContentDialog x:Name="PhotoDetailDialog"
+                       Title="写真の詳細"
+                       PrimaryButtonText="この写真を送信"
+                       CloseButtonText="閉じる"
+                       DefaultButton="Close"
+                       PrimaryButtonClick="PhotoDetailDialog_PrimaryButtonClick">
+            <ScrollViewer MaxHeight="520" VerticalScrollBarVisibility="Auto">
+                <StackPanel Spacing="16" MinWidth="480" MaxWidth="580">
+                    <!-- 拡大画像プレビュー -->
+                    <Border CornerRadius="8" Background="{ThemeResource LayerFillColorDefaultBrush}" HorizontalAlignment="Center">
+                        <Image x:Name="DetailPreviewImage" 
+                               MaxHeight="320" 
+                               MaxWidth="560" 
+                               Stretch="Uniform" />
+                    </Border>
+
+                    <!-- メタデータカード -->
+                    <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                            BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                            BorderThickness="1"
+                            CornerRadius="8"
+                            Padding="16">
+                        <Grid RowSpacing="10" ColumnSpacing="16">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+
+                            <!-- ファイル名 -->
+                            <TextBlock Grid.Row="0" Grid.Column="0" Text="ファイル名" FontWeight="SemiBold" VerticalAlignment="Center" />
+                            <TextBlock Grid.Row="0" Grid.Column="1" x:Name="DetailFileNameText" IsTextSelectionEnabled="True" VerticalAlignment="Center" TextWrapping="Wrap" />
+
+                            <!-- 撮影日時 -->
+                            <TextBlock Grid.Row="1" Grid.Column="0" Text="撮影日時" FontWeight="SemiBold" VerticalAlignment="Center" />
+                            <TextBlock Grid.Row="1" Grid.Column="1" x:Name="DetailDateText" VerticalAlignment="Center" />
+
+                            <!-- 解像度 / サイズ -->
+                            <TextBlock Grid.Row="2" Grid.Column="0" Text="解像度 / サイズ" FontWeight="SemiBold" VerticalAlignment="Center" />
+                            <TextBlock Grid.Row="2" Grid.Column="1" x:Name="DetailResolutionAndSizeText" VerticalAlignment="Center" />
+
+                            <!-- ワールド名 -->
+                            <TextBlock Grid.Row="3" Grid.Column="0" Text="ワールド名" FontWeight="SemiBold" VerticalAlignment="Center" />
+                            <StackPanel Grid.Row="3" Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                                <TextBlock x:Name="DetailWorldNameText" IsTextSelectionEnabled="True" VerticalAlignment="Center" TextWrapping="Wrap" />
+                                <ProgressRing x:Name="DetailWorldProgressRing" Width="16" Height="16" IsActive="False" />
+                            </StackPanel>
+
+                            <!-- ワールドURL -->
+                            <TextBlock Grid.Row="4" Grid.Column="0" Text="ワールドURL" FontWeight="SemiBold" VerticalAlignment="Center" />
+                            <HyperlinkButton Grid.Row="4" Grid.Column="1" x:Name="DetailWorldUrlButton" Padding="0" VerticalAlignment="Center" Visibility="Collapsed" Click="DetailWorldUrlButton_Click">
+                                <TextBlock x:Name="DetailWorldUrlText" TextTrimming="CharacterEllipsis" />
+                            </HyperlinkButton>
+
+                            <!-- 同行者 -->
+                            <TextBlock Grid.Row="5" Grid.Column="0" Text="同行者 (プレイヤー)" FontWeight="SemiBold" VerticalAlignment="Top" Margin="0,2,0,0" />
+                            <TextBlock Grid.Row="5" Grid.Column="1" x:Name="DetailPlayersText" TextWrapping="Wrap" IsTextSelectionEnabled="True" VerticalAlignment="Center" />
+                        </Grid>
+                    </Border>
+                </StackPanel>
+            </ScrollViewer>
+        </ContentDialog>
     </Grid>
 </Page>

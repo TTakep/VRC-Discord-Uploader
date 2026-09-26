@@ -49,9 +49,19 @@ public partial class HomeViewModel : ObservableObject
         UpdateWatchStatus();
         LoadLastHistory();
 
-        _fileWatcher.PhotoDetected += OnPhotoDetected;
-        _photoBatch.UploadCompleted += OnUploadCompleted;
         _historyManager.HistoryItemAdded += OnHistoryItemAdded;
+
+        _photoBatch.StatusChanged += (s, e) =>
+        {
+            App.CurrentWindowDispatcher?.TryEnqueue(() =>
+            {
+                ManualUploadStatus = e.StatusText;
+                if (!e.IsActive)
+                {
+                    UpdateWatchStatus();
+                }
+            });
+        };
     }
 
     private void UpdateWatchStatus()
@@ -115,18 +125,11 @@ public partial class HomeViewModel : ObservableObject
         }
     }
 
-    private void OnPhotoDetected(object? sender, PhotoDetectedEventArgs e)
-    {
-        _photoBatch.EnqueueRealtimePhoto(e.FilePath);
-    }
-
-    private void OnUploadCompleted(object? sender, UploadCompletedEventArgs e)
-    {
-        _historyManager.AddItem(e.HistoryItem);
-    }
-
     private void OnHistoryItemAdded(object? sender, UploadHistoryItem item)
     {
-        LastUploadItem = item;
+        App.CurrentWindowDispatcher?.TryEnqueue(() =>
+        {
+            LastUploadItem = item;
+        });
     }
 }

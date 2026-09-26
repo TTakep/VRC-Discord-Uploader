@@ -31,7 +31,10 @@ public class DiscordWebhookService
     /// <summary>
     /// 写真リストをDiscordへアップロードします。
     /// </summary>
-    public async Task<UploadHistoryItem> UploadPhotosAsync(List<VRCPhotoInfo> photos)
+    public async Task<UploadHistoryItem> UploadPhotosAsync(
+        List<VRCPhotoInfo> photos,
+        bool? imageOnlyOverride = null,
+        Action<string>? progress = null)
     {
         var config = _configService.CurrentConfig;
         var webhookUrl = _configService.GetWebhookUrl();
@@ -124,34 +127,47 @@ public class DiscordWebhookService
                     break;
             }
 
-            // マルチパートフォームデータの構築
-            using var form = new MultipartFormDataContent();
-
-            // 画像処理と添付
+            // 画像処理（非同期・ワーカースレッドで実行）
             var processedImages = new List<ProcessedImageResult>();
             for (int i = 0; i < photos.Count; i++)
             {
                 var photo = photos[i];
-                var processed = _imageService.ProcessImageForUpload(photo.FilePath, config.UploadBehavior.MaxFileSizeMB);
+                progress?.Invoke($"画像最適化中 ({i + 1}/{photos.Count}): {photo.FileName}");
+                var processed = await Task.Run(() => _imageService.ProcessImageForUpload(
+                    photo.FilePath, 
+                    config.UploadBehavior.MaxFileSizeMB,
+                    subMsg => progress?.Invoke($"({i + 1}/{photos.Count}) {subMsg}")));
                 processedImages.Add(processed);
-
-                var fileContent = new ByteArrayContent(processed.Data);
-                fileContent.Headers.ContentType = MediaTypeHeaderValue.Parse(processed.ContentType);
-                form.Add(fileContent, $"files[{i}]", processed.FileName);
             }
 
             // ペイロードJSONの構築
-            var payloadNode = BuildPayloadJson(photos, processedImages, newThreadName, config);
+            var payloadNode = BuildPayloadJson(photos, processedImages, newThreadName, config, imageOnlyOverride);
             var jsonString = payloadNode.ToJsonString();
-            var jsonContent = new StringContent(jsonString, Encoding.UTF8, "application/json");
-            form.Add(jsonContent, "payload_json");
+
+            // マルチパートフォームデータのファクトリ（リトライ時のストリーム再利用不可対策）
+            MultipartFormDataContent CreateFormContent()
+            {
+                var f = new MultipartFormDataContent();
+                for (int i = 0; i < processedImages.Count; i++)
+                {
+                    var img = processedImages[i];
+                    var fileContent = new ByteArrayContent(img.Data);
+                    fileContent.Headers.ContentType = MediaTypeHeaderValue.Parse(img.ContentType);
+                    f.Add(fileContent, $"files[{i}]", img.FileName);
+                }
+                var jsonContent = new StringContent(jsonString, Encoding.UTF8, "application/json");
+                f.Add(jsonContent, "payload_json");
+                return f;
+            }
 
             // 送信（429レートリミット時の自動リトライ対応）
+            progress?.Invoke($"Discordへ送信中 ({photos.Count}枚)...");
             HttpResponseMessage? response = null;
             int maxRetries = 3;
 
             for (int attempt = 0; attempt < maxRetries; attempt++)
             {
+                using var form = CreateFormContent();
                 response = await HttpClient.PostAsync(requestUrl, form);
                 if (response.IsSuccessStatusCode)
                 {
@@ -301,7 +317,8 @@ public class DiscordWebhookService
         List<VRCPhotoInfo> photos,
         List<ProcessedImageResult> images,
         string? newThreadName,
-        AppConfig config)
+        AppConfig config,
+        bool? imageOnlyOverride = null)
     {
         var root = new JsonObject();
 
@@ -311,7 +328,8 @@ public class DiscordWebhookService
         }
 
         // 「画像のみ送信モード」の場合
-        if (config.UploadBehavior.ImageOnly)
+        bool imageOnly = imageOnlyOverride ?? config.UploadBehavior.ImageOnly;
+        if (imageOnly)
         {
             return root;
         }
@@ -383,12 +401,81 @@ public class DiscordWebhookService
             });
         }
 
+        // 解像度・容量（最適化情報含む）フィールド
+        if (config.Metadata.IncludeResolutionAndSize && images.Count > 0)
+        {
+            if (images.Count == 1)
+            {
+                var img = images[0];
+                if (img.WasResized)
+                {
+                    fields.Add(new JsonObject
+                    {
+                        ["name"] = "📐 解像度 (最適化済)",
+                        ["value"] = $"{img.OriginalWidth}×{img.OriginalHeight} ➔ **{img.Width}×{img.Height}**",
+                        ["inline"] = true
+                    });
+                    fields.Add(new JsonObject
+                    {
+                        ["name"] = "💾 容量 (縮小済)",
+                        ["value"] = $"{ProcessedImageResult.FormatBytes(img.OriginalSizeBytes)} ➔ **{ProcessedImageResult.FormatBytes(img.ProcessedSizeBytes)}**",
+                        ["inline"] = true
+                    });
+                }
+                else
+                {
+                    fields.Add(new JsonObject
+                    {
+                        ["name"] = "📐 解像度",
+                        ["value"] = $"{img.Width} × {img.Height}",
+                        ["inline"] = true
+                    });
+                    fields.Add(new JsonObject
+                    {
+                        ["name"] = "💾 容量",
+                        ["value"] = ProcessedImageResult.FormatBytes(img.ProcessedSizeBytes),
+                        ["inline"] = true
+                    });
+                }
+            }
+            else
+            {
+                var detailsLines = new List<string>();
+                for (int i = 0; i < images.Count; i++)
+                {
+                    var img = images[i];
+                    if (img.WasResized)
+                    {
+                        detailsLines.Add($"• **[{i + 1}]** {img.OriginalWidth}×{img.OriginalHeight} ({ProcessedImageResult.FormatBytes(img.OriginalSizeBytes)}) ➔ **{img.Width}×{img.Height} ({ProcessedImageResult.FormatBytes(img.ProcessedSizeBytes)})** ⚡最適化");
+                    }
+                    else
+                    {
+                        detailsLines.Add($"• **[{i + 1}]** {img.Width}×{img.Height} ({ProcessedImageResult.FormatBytes(img.ProcessedSizeBytes)})");
+                    }
+                }
+
+                fields.Add(new JsonObject
+                {
+                    ["name"] = $"🖼 画像解像度・容量 ({images.Count}枚)",
+                    ["value"] = string.Join("\n", detailsLines),
+                    ["inline"] = false
+                });
+            }
+        }
+
         if (fields.Count > 0)
         {
             embed["fields"] = fields;
         }
 
-        // 1枚目をEmbedに埋め込みプレビューとして表示
+        // Discordの仕様: 複数のEmbedに同一のurlを設定すると、1つのマルチ画像ギャラリー（グリッド表示）として統合される
+        string galleryUrl = !string.IsNullOrWhiteSpace(primaryPhoto.WorldId) && primaryPhoto.WorldId.StartsWith("wrld_")
+            ? $"https://vrchat.com/home/world/{primaryPhoto.WorldId}"
+            : "https://vrchat.com";
+
+        embed["url"] = galleryUrl;
+
+        // 1枚目をプライマリEmbedの画像として設定
         if (images.Count > 0)
         {
             embed["image"] = new JsonObject
@@ -398,6 +485,21 @@ public class DiscordWebhookService
         }
 
         embedsArray.Add(embed);
+
+        // 2枚目以降の写真も同一urlのEmbedとして追加（最大10枚、Discordが1つのギャラリーにタイル配置）
+        for (int i = 1; i < images.Count; i++)
+        {
+            var nextEmbed = new JsonObject
+            {
+                ["url"] = galleryUrl,
+                ["image"] = new JsonObject
+                {
+                    ["url"] = $"attachment://{images[i].FileName}"
+                }
+            };
+            embedsArray.Add(nextEmbed);
+        }
+
         root["embeds"] = embedsArray;
 
         return root;

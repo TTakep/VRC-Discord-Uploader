@@ -85,8 +85,13 @@ public class CoreTests
             Assert.Equal("image/png", result.ContentType);
             Assert.EndsWith(".png", result.FileName);
             Assert.True(result.Data.Length <= (long)(maxMB * 1024 * 1024) + 1024); // 許容マージン
+            Assert.Equal(3840, result.OriginalWidth);
+            Assert.Equal(2160, result.OriginalHeight);
+            Assert.Equal(originalSize, result.OriginalSizeBytes);
             Assert.True(result.Width < 3840);
             Assert.True(result.Height < 2160);
+            Assert.Contains("➔", result.ResolutionText);
+            Assert.Contains("➔", result.SizeText);
         }
         finally
         {
@@ -126,5 +131,17 @@ public class CoreTests
         var (success2, msg2) = await discordService.TestWebhookAsync("");
         Assert.False(success2);
         Assert.Contains("入力されていません", msg2);
+    }
+
+    [Fact]
+    public void ConfigurationService_SaveConfig_FiresConfigSavedEvent()
+    {
+        var configService = new ConfigurationService();
+        bool eventFired = false;
+        configService.ConfigSaved += () => eventFired = true;
+
+        configService.SaveConfig();
+
+        Assert.True(eventFired);
     }
 }

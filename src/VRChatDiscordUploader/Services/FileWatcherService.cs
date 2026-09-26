@@ -20,6 +20,7 @@ public class FileWatcherService : IDisposable
     private FileSystemWatcher? _watcher;
     private readonly ConfigurationService _configService;
     private bool _isPaused = false;
+    private string? _currentWatchPath;
 
     public event EventHandler<PhotoDetectedEventArgs>? PhotoDetected;
 
@@ -28,6 +29,19 @@ public class FileWatcherService : IDisposable
     public FileWatcherService(ConfigurationService configService)
     {
         _configService = configService;
+        _configService.ConfigSaved += OnConfigSaved;
+    }
+
+    private void OnConfigSaved()
+    {
+        var newPath = _configService.GetEffectiveWatchDirectory();
+        if (!string.Equals(_currentWatchPath, newPath, StringComparison.OrdinalIgnoreCase))
+        {
+            if (IsWatching)
+            {
+                Start();
+            }
+        }
     }
 
     public void Start()
@@ -35,6 +49,7 @@ public class FileWatcherService : IDisposable
         Stop();
 
         var watchPath = _configService.GetEffectiveWatchDirectory();
+        _currentWatchPath = watchPath;
         if (!Directory.Exists(watchPath))
         {
             try
@@ -167,6 +182,7 @@ public class FileWatcherService : IDisposable
 
     public void Dispose()
     {
+        _configService.ConfigSaved -= OnConfigSaved;
         Stop();
     }
 }

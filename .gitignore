@@ -1,4 +1,6 @@
-## Build results
+## .NET / Visual Studio
+[Bb]in/
+[Oo]bj/
 [Dd]ebug/
 [Dd]ebugPublic/
 [Rr]elease/
@@ -8,18 +10,52 @@ x86/
 [Aa][Rr][Mm]/
 [Aa][Rr][Mm]64/
 bld/
-[Bb]in/
-[Oo]bj/
-[Ll]og/
-[Ll]ogs/
 dist/
-
-## Visual Studio cache
+artifacts/
 .vs/
 *.user
+*.suo
 *.userosscache
 *.sln.docstates
+
+## Build logs
+[Ll]og/
+[Ll]ogs/
+*.log
+*.binlog
+
+## Test results
+[Tt]est[Rr]esult*/
+*.trx
+*.coverage
+*.coveragexml
+
+## NuGet
+*.nupkg
+*.snupkg
+*.nuget.props
+*.nuget.targets
+project.lock.json
+
+## MSIX packaging output
+AppPackages/
+BundleArtifacts/
+*.msix
+*.msixupload
+*.appx
+*.appxbundle
+*.appxupload
+
+## Publish output
+publish/
+PublishScripts/
+
+## Generated files
+Generated Files/
+[Gg]enerated [Ff]iles/
+*_wpftmp.csproj
 
 ## OS generated files
 .DS_Store
 Thumbs.db
+

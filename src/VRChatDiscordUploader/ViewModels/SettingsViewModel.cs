@@ -51,6 +51,16 @@ public partial class SettingsViewModel : ObservableObject
     [ObservableProperty]
     private double _maxUsersCount = 15;
 
+    [ObservableProperty]
+    private bool _includeResolutionAndSize = true;
+
+    // 保存状態フィードバック
+    [ObservableProperty]
+    private bool _isSavedMessageOpen;
+
+    [ObservableProperty]
+    private string _savedMessageText = "設定を正常に保存しました。";
+
     // アップロード設定
     [ObservableProperty]
     private int _batchModeIndex = 1; // 0: Single, 1: Batch
@@ -67,6 +77,9 @@ public partial class SettingsViewModel : ObservableObject
 
     [ObservableProperty]
     private int _notificationLevelIndex = 0; // 0: ErrorOnly, 1: All, 2: None
+
+    [ObservableProperty]
+    private int _closeBehaviorIndex = 0; // 0: MinimizeToTray, 1: ExitApplication
 
     [ObservableProperty]
     private bool _autoStartWithWindows;
@@ -93,6 +106,7 @@ public partial class SettingsViewModel : ObservableObject
         IncludeWorldId = cfg.Metadata.IncludeWorldId;
         IncludeUsers = cfg.Metadata.IncludeUsers;
         MaxUsersCount = cfg.Metadata.MaxUsersCount;
+        IncludeResolutionAndSize = cfg.Metadata.IncludeResolutionAndSize;
 
         BatchModeIndex = (int)cfg.UploadBehavior.BatchMode;
         BatchWaitSeconds = cfg.UploadBehavior.BatchWaitSeconds;
@@ -100,6 +114,7 @@ public partial class SettingsViewModel : ObservableObject
 
         CustomWatchDirectory = cfg.General.CustomWatchDirectory;
         NotificationLevelIndex = (int)cfg.General.NotificationLevel;
+        CloseBehaviorIndex = (int)cfg.General.CloseBehavior;
         AutoStartWithWindows = cfg.General.AutoStartWithWindows;
     }
 
@@ -119,6 +134,7 @@ public partial class SettingsViewModel : ObservableObject
         cfg.Metadata.IncludeWorldId = IncludeWorldId;
         cfg.Metadata.IncludeUsers = IncludeUsers;
         cfg.Metadata.MaxUsersCount = (int)MaxUsersCount;
+        cfg.Metadata.IncludeResolutionAndSize = IncludeResolutionAndSize;
 
         cfg.UploadBehavior.BatchMode = (BatchMode)BatchModeIndex;
         cfg.UploadBehavior.BatchWaitSeconds = (int)BatchWaitSeconds;
@@ -126,10 +142,22 @@ public partial class SettingsViewModel : ObservableObject
 
         cfg.General.CustomWatchDirectory = CustomWatchDirectory.Trim();
         cfg.General.NotificationLevel = (NotificationLevel)NotificationLevelIndex;
+        cfg.General.CloseBehavior = (CloseWindowBehavior)CloseBehaviorIndex;
         cfg.General.AutoStartWithWindows = AutoStartWithWindows;
 
         UpdateStartupRegistry(AutoStartWithWindows);
         _configService.SaveConfig();
+
+        SavedMessageText = "設定を正常に保存しました。";
+        IsSavedMessageOpen = true;
+
+        Task.Delay(3500).ContinueWith(_ =>
+        {
+            App.CurrentWindowDispatcher?.TryEnqueue(() =>
+            {
+                IsSavedMessageOpen = false;
+            });
+        });
     }
 
     [RelayCommand]

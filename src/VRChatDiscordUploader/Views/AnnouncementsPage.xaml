@@ -8,8 +8,8 @@
     xmlns:models="using:VRChatDiscordUploader.Models"
     mc:Ignorable="d">
 
-    <ScrollViewer Padding="36,24,36,24">
-        <StackPanel Spacing="24" MaxWidth="800" HorizontalAlignment="Left">
+    <ScrollViewer Padding="36,24,36,36">
+        <StackPanel Spacing="24" HorizontalAlignment="Stretch">
             
             <!-- ページヘッダー -->
             <StackPanel Spacing="4">

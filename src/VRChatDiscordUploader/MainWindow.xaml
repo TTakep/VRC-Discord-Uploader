@@ -16,6 +16,9 @@
         <!-- メインUIレイアウト -->
         <NavigationView x:Name="MainNavView"
                         IsBackButtonVisible="Collapsed"
+                        IsSettingsVisible="False"
+                        OpenPaneLength="210"
+                        CompactPaneLength="48"
                         PaneDisplayMode="Left"
                         IsPaneToggleButtonVisible="True"
                         SelectionChanged="MainNavView_SelectionChanged"
@@ -29,6 +32,11 @@
                 <NavigationViewItem Content="写真アルバム" Tag="Gallery">
                     <NavigationViewItem.Icon>
                         <FontIcon Glyph="&#xEB9F;" />
+                    </NavigationViewItem.Icon>
+                </NavigationViewItem>
+                <NavigationViewItem Content="送信キュー" Tag="Queue">
+                    <NavigationViewItem.Icon>
+                        <FontIcon Glyph="&#xE898;" />
                     </NavigationViewItem.Icon>
                 </NavigationViewItem>
                 <NavigationViewItem Content="送信履歴" Tag="History">

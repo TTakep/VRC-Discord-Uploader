@@ -23,6 +23,7 @@ public class ConfigurationService
     };
 
     public AppConfig CurrentConfig { get; private set; } = new();
+    public event Action? ConfigSaved;
 
     public ConfigurationService()
     {
@@ -71,6 +72,7 @@ public class ConfigurationService
             EnsureDirectoryExists();
             var json = JsonSerializer.Serialize(CurrentConfig, JsonOptions);
             File.WriteAllText(ConfigFilePath, json, Encoding.UTF8);
+            ConfigSaved?.Invoke();
         }
         catch (Exception ex)
         {

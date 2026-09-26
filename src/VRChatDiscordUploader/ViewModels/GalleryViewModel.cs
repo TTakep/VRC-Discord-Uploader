@@ -6,6 +6,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using SkiaSharp;
 using VRChatDiscordUploader.Services;
 
 namespace VRChatDiscordUploader.ViewModels;
@@ -16,15 +17,54 @@ public partial class GalleryPhotoItem : ObservableObject
     public string FileName { get; set; } = string.Empty;
     public DateTime CapturedAt { get; set; }
     public string FormattedDate => CapturedAt.ToString("yyyy/MM/dd HH:mm:ss");
+    public long FileSizeBytes { get; set; }
+
+    public string FormattedSize => FileSizeBytes switch
+    {
+        >= 1024 * 1024 => $"{(double)FileSizeBytes / (1024 * 1024):F2} MB",
+        >= 1024 => $"{(double)FileSizeBytes / 1024:F1} KB",
+        _ => $"{FileSizeBytes} B"
+    };
+
+    [ObservableProperty]
+    private string _dimensions = "読み込み中...";
+
+    [ObservableProperty]
+    private string _worldName = "ログ確認中...";
+
+    [ObservableProperty]
+    private string _worldId = string.Empty;
+
+    public string WorldUrl => !string.IsNullOrWhiteSpace(WorldId)
+        ? $"https://vrchat.com/home/world/{WorldId}"
+        : string.Empty;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(FormattedPlayers))]
+    private ObservableCollection<string> _players = new();
+
+    public string FormattedPlayers => Players.Count > 0 ? string.Join(", ", Players) : "（記録なし）";
+
+    public void SetPlayers(IEnumerable<string> players)
+    {
+        Players = new ObservableCollection<string>(players);
+    }
 
     [ObservableProperty]
     private bool _isSelected;
+
+    [ObservableProperty]
+    private bool _isDetailsLoaded;
+
+    [ObservableProperty]
+    private bool _isLoadingDetails;
 }
 
 public partial class GalleryViewModel : ObservableObject
 {
     private readonly ConfigurationService _configService;
     private readonly PhotoBatchService _photoBatch;
+    private readonly VRCLogParserService _logParser;
 
     [ObservableProperty]
     private ObservableCollection<string> _availableMonths = new();
@@ -39,17 +79,60 @@ public partial class GalleryViewModel : ObservableObject
     private bool _isLoading;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CanUpload))]
     private bool _isUploading;
 
     [ObservableProperty]
     private string _statusMessage = string.Empty;
 
+    [ObservableProperty]
+    private bool _imageOnly;
+
+    [ObservableProperty]
+    private GalleryPhotoItem? _selectedPhotoForDetail;
+
+    // キュー・進捗の可視化用プロパティ
+    [ObservableProperty]
+    private string _batchStatusText = string.Empty;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(BatchProgressVisibility))]
+    [NotifyPropertyChangedFor(nameof(CanUpload))]
+    private bool _isBatchActive;
+
+    [ObservableProperty]
+    private double _batchProgressValue;
+
+    [ObservableProperty]
+    private bool _batchProgressIsIndeterminate;
+
+    public Microsoft.UI.Xaml.Visibility BatchProgressVisibility => IsBatchActive ? Microsoft.UI.Xaml.Visibility.Visible : Microsoft.UI.Xaml.Visibility.Collapsed;
+    public bool CanUpload => !IsBatchActive && !IsUploading;
+
     public int SelectedPhotosCount => Photos.Count(p => p.IsSelected);
 
-    public GalleryViewModel(ConfigurationService configService, PhotoBatchService photoBatch)
+    public GalleryViewModel(
+        ConfigurationService configService,
+        PhotoBatchService photoBatch,
+        VRCLogParserService logParser)
     {
         _configService = configService;
         _photoBatch = photoBatch;
+        _logParser = logParser;
+        _imageOnly = _configService.CurrentConfig.UploadBehavior.ImageOnly;
+
+        _photoBatch.StatusChanged += (s, e) =>
+        {
+            App.CurrentWindowDispatcher?.TryEnqueue(() =>
+            {
+                IsBatchActive = e.IsActive;
+                BatchStatusText = e.StatusText;
+                BatchProgressValue = e.ProgressPercentage;
+                BatchProgressIsIndeterminate = e.IsActive && e.TotalCount == 0;
+                StatusMessage = e.StatusText;
+            });
+        };
+
         LoadAvailableMonths();
     }
 
@@ -99,8 +182,7 @@ public partial class GalleryViewModel : ObservableObject
         IsLoading = true;
         StatusMessage = "写真を読み込み中...";
         Photos.Clear();
-
-        await Task.Run(() =>
+        var loadedItems = await Task.Run(() =>
         {
             var files = Directory.GetFiles(targetDir, "*.*")
                 .Where(f =>
@@ -119,6 +201,7 @@ public partial class GalleryViewModel : ObservableObject
                     FilePath = f,
                     FileName = fi.Name,
                     CapturedAt = fi.CreationTime,
+                    FileSizeBytes = fi.Exists ? fi.Length : 0,
                     IsSelected = false
                 };
                 item.PropertyChanged += (s, e) =>
@@ -132,18 +215,70 @@ public partial class GalleryViewModel : ObservableObject
             }).ToList();
 
             return items;
-        }).ContinueWith(t =>
+        });
+
+        foreach (var item in loadedItems)
         {
-            if (t.IsCompletedSuccessfully)
+            Photos.Add(item);
+        }
+        StatusMessage = $"{Photos.Count}枚の写真を読み込みました。";
+        IsLoading = false;
+    }
+
+    public async Task LoadPhotoDetailsAsync(GalleryPhotoItem item)
+    {
+        if (item.IsDetailsLoaded || item.IsLoadingDetails) return;
+
+        item.IsLoadingDetails = true;
+        try
+        {
+            var (dimensions, worldName, worldId, players) = await Task.Run(() =>
             {
-                foreach (var item in t.Result)
+                string dim = "不明";
+                try
                 {
-                    Photos.Add(item);
+                    using var codec = SKCodec.Create(item.FilePath);
+                    if (codec != null)
+                    {
+                        dim = $"{codec.Info.Width} × {codec.Info.Height}";
+                    }
                 }
-                StatusMessage = $"{Photos.Count}枚の写真を読み込みました。";
-            }
-            IsLoading = false;
-        }, TaskScheduler.FromCurrentSynchronizationContext());
+                catch { }
+
+                string wName = "（記録なし）";
+                string wId = string.Empty;
+                List<string> pList = new();
+
+                try
+                {
+                    var meta = _logParser.ExtractPhotoMetadata(item.FilePath, isRealtime: false);
+                    if (!string.IsNullOrWhiteSpace(meta.WorldName))
+                    {
+                        wName = meta.WorldName;
+                    }
+                    wId = meta.WorldId;
+                    pList = meta.PlayersInRoom;
+                }
+                catch { }
+
+                return (dim, wName, wId, pList);
+            });
+
+            // UIスレッドで一括更新
+            item.Dimensions = dimensions;
+            item.WorldName = worldName;
+            item.WorldId = worldId;
+            item.SetPlayers(players);
+            item.IsDetailsLoaded = true;
+        }
+        catch (Exception ex)
+        {
+            App.Log($"写真詳細の読み込みエラー: {ex.Message}");
+        }
+        finally
+        {
+            item.IsLoadingDetails = false;
+        }
     }
 
     [RelayCommand]
@@ -177,13 +312,34 @@ public partial class GalleryViewModel : ObservableObject
         }
 
         IsUploading = true;
-        StatusMessage = $"{selected.Count}枚の写真を送信中...";
+        StatusMessage = $"{selected.Count}枚の写真を送信キューへ投入中...";
 
         try
         {
-            await _photoBatch.EnqueueManualPhotosAsync(selected);
-            StatusMessage = $"{selected.Count}枚の写真を送信キューへ投入しました。";
+            await _photoBatch.EnqueueManualPhotosAsync(selected, ImageOnly);
             DeselectAll();
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = $"エラーが発生しました: {ex.Message}";
+        }
+        finally
+        {
+            IsUploading = false;
+        }
+    }
+
+    [RelayCommand]
+    public async Task UploadSinglePhotoAsync(GalleryPhotoItem? item)
+    {
+        if (item == null || string.IsNullOrWhiteSpace(item.FilePath)) return;
+
+        IsUploading = true;
+        StatusMessage = $"「{item.FileName}」を送信中...";
+
+        try
+        {
+            await _photoBatch.EnqueueManualPhotosAsync(new[] { item.FilePath }, ImageOnly);
         }
         catch (Exception ex)
         {
