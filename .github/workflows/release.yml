@@ -4,6 +4,12 @@ on:
   push:
     tags:
       - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version (e.g. 1.0.0)'
+        required: false
+        default: '1.0.0'
 
 permissions:
   contents: write
@@ -42,18 +48,24 @@ jobs:
     - name: Package Portable ZIP
       shell: pwsh
       run: |
-        $version = "${{ github.ref_name }}".TrimStart('v')
-        Compress-Archive -Path "dist/app/*" -DestinationPath "dist/VRChatDiscordUploader-v${version}-win-x64.zip" -Force
+        $ver = "${{ github.event.inputs.version }}"
+        if (-not $ver) { $ver = "${{ github.ref_name }}".TrimStart('v') }
+        if (-not $ver -or $ver -eq "main") { $ver = "1.0.0" }
+        Compress-Archive -Path "dist/app/*" -DestinationPath "dist/VRChatDiscordUploader-v${ver}-win-x64.zip" -Force
 
     - name: Build Installer with Inno Setup
       shell: pwsh
       run: |
-        $version = "${{ github.ref_name }}".TrimStart('v')
-        & iscc /DMyAppVersion="$version" installer/installer.iss
+        $ver = "${{ github.event.inputs.version }}"
+        if (-not $ver) { $ver = "${{ github.ref_name }}".TrimStart('v') }
+        if (-not $ver -or $ver -eq "main") { $ver = "1.0.0" }
+        & iscc /DMyAppVersion="$ver" installer/installer.iss
 
     - name: Create GitHub Release and Upload Assets
       uses: softprops/action-gh-release@v2
       with:
+        tag_name: ${{ github.ref_type == 'tag' && github.ref_name || format('v{0}', github.event.inputs.version || '1.0.0') }}
+        name: ${{ github.ref_type == 'tag' && github.ref_name || format('v{0}', github.event.inputs.version || '1.0.0') }}
         files: |
           dist/VRChatDiscordUploader-Setup-*.exe
           dist/VRChatDiscordUploader-v*-win-x64.zip
