@@ -13,6 +13,7 @@ namespace VRChatDiscordUploader;
 public sealed partial class MainWindow : Window
 {
     private AppWindow? _appWindow;
+    private TrayIconService? _trayIconService;
     private bool _isExplicitExit = false;
 
     public MainWindow()
@@ -33,8 +34,32 @@ public sealed partial class MainWindow : Window
         // ウィンドウクローズ時にタスクトレイに最小化格納
         _appWindow.Closing += AppWindow_Closing;
 
-        // タスクトレイアイコンの左クリックでウィンドウ復帰
-        AppTrayIcon.LeftClickCommand = new CommunityToolkit.Mvvm.Input.RelayCommand(ShowWindow);
+        // タスクトレイ常駐サービスの初期化
+        var fileWatcher = App.Services.GetRequiredService<FileWatcherService>();
+        _trayIconService = new TrayIconService(
+            hwnd,
+            _appWindow,
+            fileWatcher,
+            this.DispatcherQueue,
+            onExitAction: ExitApplication
+        );
+
+        // 起動引数の確認（スタートアップ起動時は最小化トレイ格納）
+        var args = Environment.GetCommandLineArgs();
+        bool startMinimized = false;
+        foreach (var arg in args)
+        {
+            if (arg.Equals("--minimized", StringComparison.OrdinalIgnoreCase))
+            {
+                startMinimized = true;
+                break;
+            }
+        }
+
+        if (!startMinimized)
+        {
+            _appWindow.Show();
+        }
     }
 
     private void AppWindow_Closing(AppWindow sender, AppWindowClosingEventArgs args)
@@ -81,34 +106,10 @@ public sealed partial class MainWindow : Window
         }
     }
 
-    private void TrayOpen_Click(object sender, RoutedEventArgs e)
-    {
-        ShowWindow();
-    }
-
-    private void ShowWindow()
-    {
-        _appWindow?.Show();
-        this.Activate();
-    }
-
-    private void TrayToggleWatch_Click(object sender, RoutedEventArgs e)
-    {
-        var watcher = App.Services.GetRequiredService<FileWatcherService>();
-        if (watcher.IsWatching)
-        {
-            watcher.Pause();
-        }
-        else
-        {
-            watcher.Resume();
-        }
-    }
-
-    private void TrayExit_Click(object sender, RoutedEventArgs e)
+    private void ExitApplication()
     {
         _isExplicitExit = true;
-        AppTrayIcon.Dispose();
+        _trayIconService?.Dispose();
         this.Close();
     }
 }

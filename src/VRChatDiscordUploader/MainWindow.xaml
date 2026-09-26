@@ -5,7 +5,6 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-    xmlns:tb="using:H.NotifyIcon"
     Title="VRChat Discord Uploader"
     mc:Ignorable="d">
 
@@ -14,32 +13,6 @@
     </Window.SystemBackdrop>
 
     <Grid>
-        <!-- タスクトレイアイコン -->
-        <tb:TaskbarIcon x:Name="AppTrayIcon"
-                        ToolTipText="VRChat Discord Uploader"
-                        IconSource="Assets/AppIcon.ico">
-            <tb:TaskbarIcon.ContextFlyout>
-                <MenuFlyout>
-                    <MenuFlyoutItem Text="開く" Click="TrayOpen_Click">
-                        <MenuFlyoutItem.Icon>
-                            <FontIcon Glyph="&#xE8A7;" />
-                        </MenuFlyoutItem.Icon>
-                    </MenuFlyoutItem>
-                    <MenuFlyoutItem Text="監視を一時停止 / 再開" Click="TrayToggleWatch_Click">
-                        <MenuFlyoutItem.Icon>
-                            <FontIcon Glyph="&#xE769;" />
-                        </MenuFlyoutItem.Icon>
-                    </MenuFlyoutItem>
-                    <MenuFlyoutSeparator />
-                    <MenuFlyoutItem Text="終了" Click="TrayExit_Click">
-                        <MenuFlyoutItem.Icon>
-                            <FontIcon Glyph="&#xE7E8;" />
-                        </MenuFlyoutItem.Icon>
-                    </MenuFlyoutItem>
-                </MenuFlyout>
-            </tb:TaskbarIcon.ContextFlyout>
-        </tb:TaskbarIcon>
-
         <!-- メインUIレイアウト -->
         <NavigationView x:Name="MainNavView"
                         IsBackButtonVisible="Collapsed"
