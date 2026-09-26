@@ -1,6 +1,8 @@
 ; Inno Setup Script for VRChat Discord Uploader
 #define MyAppName "VRChat Discord Uploader"
-#define MyAppVersion "1.0.0"
+#ifndef MyAppVersion
+  #define MyAppVersion "1.0.0"
+#endif
 #define MyAppPublisher "Takep"
 #define MyAppURL "https://github.com/Takep/VRC-Discord-Uploader"
 #define MyAppExeName "VRChatDiscordUploader.exe"
