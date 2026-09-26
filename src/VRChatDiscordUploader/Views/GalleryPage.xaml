@@ -1,0 +1,116 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<Page
+    x:Class="VRChatDiscordUploader.Views.GalleryPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:viewmodels="using:VRChatDiscordUploader.ViewModels"
+    mc:Ignorable="d">
+
+    <Grid Padding="36,24,36,24" RowSpacing="16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <!-- ページヘッダー -->
+        <StackPanel Spacing="4">
+            <TextBlock Text="写真アルバム" Style="{StaticResource TitleTextBlockStyle}" FontWeight="SemiBold" />
+            <TextBlock Text="過去に撮影した写真を年月別に閲覧し、選択してDiscordへ送信できます" 
+                       Style="{StaticResource BodyTextBlockStyle}" 
+                       Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+        </StackPanel>
+
+        <!-- ツールバー -->
+        <Grid Grid.Row="1" ColumnSpacing="12">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+
+            <!-- 年月セレクター -->
+            <ComboBox ItemsSource="{x:Bind ViewModel.AvailableMonths, Mode=OneWay}"
+                      SelectedItem="{x:Bind ViewModel.SelectedMonth, Mode=TwoWay}"
+                      PlaceholderText="年月を選択"
+                      MinWidth="160" />
+
+            <Button Grid.Column="1" Command="{x:Bind ViewModel.SelectAllCommand}">
+                <TextBlock Text="すべて選択" />
+            </Button>
+
+            <Button Grid.Column="2" Command="{x:Bind ViewModel.DeselectAllCommand}">
+                <TextBlock Text="選択解除" />
+            </Button>
+
+            <!-- 送信ボタン -->
+            <Button Grid.Column="4" 
+                    Style="{StaticResource AccentButtonStyle}"
+                    Command="{x:Bind ViewModel.UploadSelectedPhotosCommand}">
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <FontIcon Glyph="&#xE898;" FontSize="14" />
+                    <TextBlock Text="選択した写真を送信" />
+                </StackPanel>
+            </Button>
+        </Grid>
+
+        <!-- 写真グリッド -->
+        <GridView Grid.Row="2"
+                  ItemsSource="{x:Bind ViewModel.Photos, Mode=OneWay}"
+                  SelectionMode="None">
+            <GridView.ItemTemplate>
+                <DataTemplate x:DataType="viewmodels:GalleryPhotoItem">
+                    <Border Width="160" Height="150" 
+                            Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                            BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                            BorderThickness="1"
+                            CornerRadius="8"
+                            Margin="4"
+                            Padding="8">
+                        <Grid RowSpacing="6">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="*" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+
+                            <Image Source="{x:Bind FilePath}" Stretch="UniformToFill" />
+
+                            <Grid Grid.Row="1">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Text="{x:Bind FormattedDate}" 
+                                           FontSize="11" 
+                                           Foreground="{ThemeResource TextFillColorSecondaryBrush}" 
+                                           VerticalAlignment="Center"
+                                           TextTrimming="CharacterEllipsis" />
+                                <CheckBox Grid.Column="1" 
+                                          IsChecked="{x:Bind IsSelected, Mode=TwoWay}" 
+                                          MinWidth="32" 
+                                          MinHeight="32"
+                                          Padding="0"
+                                          HorizontalAlignment="Right" />
+                            </Grid>
+                        </Grid>
+                    </Border>
+                </DataTemplate>
+            </GridView.ItemTemplate>
+        </GridView>
+
+        <!-- ステータスバー -->
+        <Border Grid.Row="3" 
+                Background="{ThemeResource LayerFillColorDefaultBrush}" 
+                Padding="12,8" 
+                CornerRadius="6">
+            <TextBlock Text="{x:Bind ViewModel.StatusMessage, Mode=OneWay}" 
+                       FontSize="12" 
+                       Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+        </Border>
+    </Grid>
+</Page>

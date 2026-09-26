@@ -1,0 +1,115 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<Page
+    x:Class="VRChatDiscordUploader.Views.HomePage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:viewmodels="using:VRChatDiscordUploader.ViewModels"
+    mc:Ignorable="d">
+
+    <ScrollViewer Padding="36,24,36,24">
+        <StackPanel Spacing="24" MaxWidth="900" HorizontalAlignment="Left">
+            
+            <!-- ページヘッダー -->
+            <StackPanel Spacing="4">
+                <TextBlock Text="ホーム" Style="{StaticResource TitleTextBlockStyle}" FontWeight="SemiBold" />
+                <TextBlock Text="VRChatの写真自動アップロード状態と手動送信" Style="{StaticResource BodyTextBlockStyle}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+            </StackPanel>
+
+            <!-- 監視ステータスカード -->
+            <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                    BorderThickness="1"
+                    CornerRadius="8"
+                    Padding="20">
+                <Grid ColumnSpacing="16">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+
+                    <FontIcon Glyph="&#xE814;" FontSize="32" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" VerticalAlignment="Center" />
+
+                    <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="4">
+                        <TextBlock Text="{x:Bind ViewModel.StatusText, Mode=OneWay}" FontWeight="SemiBold" FontSize="16" />
+                        <TextBlock Text="{x:Bind ViewModel.WatchDirectoryText, Mode=OneWay}" 
+                                   FontSize="12" 
+                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}" 
+                                   TextTrimming="CharacterEllipsis" />
+                    </StackPanel>
+
+                    <Button Grid.Column="2" 
+                            Command="{x:Bind ViewModel.ToggleWatchingCommand}" 
+                            VerticalAlignment="Center">
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <FontIcon Glyph="&#xE769;" FontSize="14" />
+                            <TextBlock Text="監視切り替え" />
+                        </StackPanel>
+                    </Button>
+                </Grid>
+            </Border>
+
+            <!-- ドラッグ＆ドロップ / 手動送信カード -->
+            <Border x:Name="DropAreaBorder"
+                    Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                    BorderThickness="2"
+                    CornerRadius="8"
+                    Padding="32"
+                    AllowDrop="True"
+                    DragOver="DropArea_DragOver"
+                    Drop="DropArea_Drop">
+                <StackPanel HorizontalAlignment="Center" Spacing="12">
+                    <FontIcon Glyph="&#xE898;" FontSize="40" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" HorizontalAlignment="Center" />
+                    <TextBlock Text="ここに写真ファイルをドラッグ＆ドロップして送信" 
+                               FontWeight="SemiBold" 
+                               FontSize="16" 
+                               HorizontalAlignment="Center" />
+                    <TextBlock Text="または、下のボタンからファイルを選択してください（複数選択可）" 
+                               FontSize="12" 
+                               Foreground="{ThemeResource TextFillColorSecondaryBrush}" 
+                               HorizontalAlignment="Center" />
+                    <Button Click="SelectFilesButton_Click" HorizontalAlignment="Center" Margin="0,8,0,0">
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <FontIcon Glyph="&#xE8E5;" FontSize="14" />
+                            <TextBlock Text="写真を選択して送信" />
+                        </StackPanel>
+                    </Button>
+                    <TextBlock Text="{x:Bind ViewModel.ManualUploadStatus, Mode=OneWay}"
+                               FontSize="12"
+                               Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}"
+                               HorizontalAlignment="Center"
+                               Visibility="{x:Bind ViewModel.IsUploading, Mode=OneWay}" />
+                </StackPanel>
+            </Border>
+
+            <!-- 直近の送信状況カード -->
+            <StackPanel Spacing="8">
+                <TextBlock Text="直近の送信" Style="{StaticResource SubtitleTextBlockStyle}" />
+                <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                        BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                        BorderThickness="1"
+                        CornerRadius="8"
+                        Padding="20">
+                    <Grid ColumnSpacing="16">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <FontIcon Glyph="&#xE930;" FontSize="28" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" VerticalAlignment="Center" />
+                        <StackPanel Grid.Column="1" Spacing="4">
+                            <TextBlock Text="{x:Bind ViewModel.LastUploadItem.WorldName, Mode=OneWay, FallbackValue='まだ送信履歴はありません'}" 
+                                       FontWeight="SemiBold" />
+                            <TextBlock Text="{x:Bind ViewModel.LastUploadItem.DestinationDescription, Mode=OneWay, FallbackValue='写真が撮影されるか手動送信されると表示されます'}" 
+                                       FontSize="12" 
+                                       Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                        </StackPanel>
+                    </Grid>
+                </Border>
+            </StackPanel>
+
+        </StackPanel>
+    </ScrollViewer>
+</Page>

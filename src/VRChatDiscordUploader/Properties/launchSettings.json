@@ -1,0 +1,10 @@
+{
+  "profiles": {
+    "VRChatDiscordUploader (Package)": {
+      "commandName": "MsixPackage"
+    },
+    "VRChatDiscordUploader (Unpackaged)": {
+      "commandName": "Project"
+    }
+  }
+}

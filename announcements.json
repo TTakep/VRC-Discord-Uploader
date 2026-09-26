@@ -1,0 +1,10 @@
+[
+  {
+    "Id": "v1.0.0-release",
+    "Title": "バージョン 1.0.0 をリリースしました",
+    "Content": "VRChatの写真自動Discord投稿ソフトウェア「VRChat Discord Uploader」を公開しました。リアルタイム自動投稿、過去写真アルバム送信、フォーラム月別スレッド集約、PNG解像度縮小最適化などに対応しています。",
+    "PublishedAt": "2026-09-26T12:00:00Z",
+    "LinkUrl": "https://github.com/Takep/VRC-Discord-Uploader/releases",
+    "IsImportant": true
+  }
+]
